@@ -95,7 +95,7 @@ body,.hall__track,.viewer{background-image:url("tex/wall.jpg");background-size:3
 
 /* ---------- lobby: the entrance wall ---------- */
 .lobby{position:relative;padding-top:var(--header-h);--name-fs:min(19vw,300px)}
-.lobby::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 75% 60% at 50% 22%,rgba(255,255,255,.34),rgba(255,255,255,0) 70%),radial-gradient(ellipse 130% 95% at 50% 40%,rgba(0,0,0,0) 55%,rgba(0,0,0,.07) 100%)}
+.lobby::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 85% 58% at 50% 44%,rgba(0,0,0,0) 0%,rgba(0,0,0,.036) 60%,rgba(0,0,0,.09) 100%)}
 .lobby>*{position:relative}
 .sky{display:block;width:100%;height:clamp(180px,31svh,380px)}
 /* In Plex Mono the L's stem sits .108em inside its letter box, so the word is pulled left by that much to put the stem on the text edge.
@@ -205,6 +205,9 @@ html{scroll-snap-type:y proximity}
 .g3{width:calc(var(--img-h) * .6);height:calc(var(--img-h) * .82)}
 
 .walltext{width:min(460px,72vw)}
+.bay--text{justify-content:center}
+.bay--text .walltext{text-align:center}
+.bay--text .walltext__title{margin:0}
 .walltext__room{margin-bottom:10px;font-size:13px;color:inherit;opacity:.7}
 .walltext__title{margin:0 0 20px;font-size:clamp(30px,3.4vw,50px);font-weight:500;line-height:1.04;letter-spacing:-.045em}
 .walltext__body{max-width:36ch;font-size:15px;line-height:1.65}
@@ -350,7 +353,7 @@ html{scroll-snap-type:y proximity}
   <section class="lobby" id="lobby" aria-labelledby="name">
     <canvas class="sky" id="sky" aria-hidden="true"></canvas>
     <h1 class="name" id="name">Lines</h1>
-    <p class="tagline">A portfolio of drawings by Leib&nbsp;Bendersky, created through patient observation of the world and pursuing the urge to capture its beauty.</p>
+    <p class="tagline">A portfolio of drawings by Leib&nbsp;Bendersky, created through patient observation of the world and pursuing the desire to capture its beauty.</p>
     <nav class="plaque" aria-label="Collections"><ul class="leaders" id="directory"></ul></nav>
   </section>
 
