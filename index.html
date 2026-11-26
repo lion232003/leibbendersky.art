@@ -125,6 +125,15 @@ body,.hall__track,.viewer{background-image:url("tex/wall.jpg");background-size:3
 .hall__track{position:absolute;top:0;left:0;height:100%;width:max-content;display:flex;background-color:var(--wall);will-change:transform}
 /* where the wall meets the ceiling: a shadow gap, then the wall falls into shade */
 .hall__track::before{content:"";position:absolute;left:0;right:0;top:0;height:min(180px,24svh);z-index:2;pointer-events:none;background:linear-gradient(to bottom,rgba(0,0,0,.2),rgba(0,0,0,.06) 32%,rgba(0,0,0,0));box-shadow:inset 0 3px 0 rgba(0,0,0,.28)}
+/* touch screens: the wall is swiped sideways, one drawing per swipe, and scrolling up or down just passes the room.
+   The track becomes the scroller; the ceiling shade moves to the view so it stays put while the wall slides. */
+.swipe .hall{height:100vh;height:100svh;scroll-snap-align:start}
+.swipe .hall__track{right:0;width:auto;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;background-attachment:local;will-change:auto;transform:none}
+.swipe .hall__track::-webkit-scrollbar{display:none}
+.swipe .hall__track::before{display:none}
+.swipe .hall__view::before{content:"";position:absolute;left:0;right:0;top:0;height:min(180px,24svh);z-index:2;pointer-events:none;background:linear-gradient(to bottom,rgba(0,0,0,.2),rgba(0,0,0,.06) 32%,rgba(0,0,0,0));box-shadow:inset 0 3px 0 rgba(0,0,0,.28)}
+.swipe .bay{scroll-snap-align:center;scroll-snap-stop:always}
+.swipe .bay--end{scroll-snap-align:none}
 
 .bay{--amb:.09;--hot:.5;--glass-amb:.1;--label-amb:.07;position:relative;flex:0 0 auto;height:100%;display:flex;align-items:center;padding:var(--ceiling-h) clamp(56px,9vw,170px) var(--floor-h);color:var(--ink)}
 .bay[data-wall="dark"]{--amb:.46;--hot:.08;--glass-amb:.32;--label-amb:.24;color:#f1f1f1}
@@ -438,6 +447,10 @@ html{scroll-snap-type:y proximity}
 /* No save menu on the drawings: right-click and drag are switched off for images. */
 document.addEventListener('contextmenu', e => { if (e.target.closest('img, .viewer__stage')) e.preventDefault(); });
 document.addEventListener('dragstart', e => { if (e.target.closest('img')) e.preventDefault(); });
+/* Touch screens (phones, tablets) swipe the gallery wall sideways; mouse and trackpad screens walk it by scrolling. */
+const swipeMQ = window.matchMedia('(hover: none) and (pointer: coarse)');
+let swipe = swipeMQ.matches;
+document.documentElement.classList.toggle('swipe', swipe);
 
 /* ======================================================================
    THE ROOMS, in walking order. Each collection is one room.
@@ -967,6 +980,8 @@ class Hall {
     this.works = this.bays.filter(b => b.classList.contains('bay--work'));
     this.vw = 0; this.distance = 0;
     this.track.addEventListener('focusin', e => this.bringToFocus(e));
+    this.track.addEventListener('scroll', onScroll, { passive: true });
+    this.view.addEventListener('wheel', e => this.sideways(e), { passive: false });
   }
   layout() {
     this.vw = this.view.clientWidth;
@@ -984,9 +999,15 @@ class Hall {
       const tail = last.offsetWidth - (last.classList.contains('bay--work') ? last._fx : last.offsetWidth / 2);
       this.end.style.width = Math.max(0, this.vw / 2 - tail).toFixed(0) + 'px';
     }
+    $$('.snap', this.el).forEach(n => n.remove());
+    if (swipe) {                                           /* one screen tall; the wall scrolls sideways inside it */
+      this.distance = 0;
+      this.el.style.height = '';
+      this.track.style.transform = '';
+      return;
+    }
     this.distance = Math.max(0, this.track.offsetWidth - this.vw);
     this.el.style.height = (this.distance + vh) + 'px';
-    $$('.snap', this.el).forEach(n => n.remove());
     for (const b of this.bays) {
       const c = b.classList.contains('bay--work') ? b.offsetLeft + b._fx : b.offsetLeft + b.offsetWidth / 2;
       const n = document.createElement('i');
@@ -998,12 +1019,20 @@ class Hall {
   }
   update(mid) {
     const r = this.el.getBoundingClientRect();
-    const p = this.distance > 0 ? clamp(-r.top / this.distance, 0, 1) : 0;
-    this.track.style.transform = `translate3d(${(-p * this.distance).toFixed(1)}px,0,0)`;
+    let x, p;
+    if (swipe) {
+      const max = this.track.scrollWidth - this.track.clientWidth;
+      x = this.track.scrollLeft;
+      p = max > 0 ? clamp(x / max, 0, 1) : 0;
+    } else {
+      p = this.distance > 0 ? clamp(-r.top / this.distance, 0, 1) : 0;
+      x = p * this.distance;
+      this.track.style.transform = `translate3d(${(-x).toFixed(1)}px,0,0)`;
+    }
     if (this.fill) this.fill.style.transform = `scaleX(${p.toFixed(4)})`;
     const here = r.top <= mid && r.bottom >= mid;
     if (!this.works.length) return here;
-    const cx = p * this.distance + this.vw / 2;
+    const cx = x + this.vw / 2;
     let best = null, bi = 0, bd = Infinity;
     this.works.forEach((b, i) => {
       const d = Math.abs(b.offsetLeft + (b._fx || b.offsetWidth / 2) - cx);
@@ -1017,13 +1046,42 @@ class Hall {
   bringToFocus(e) {
     if (!e.target.matches(':focus-visible')) return;
     const b = e.target.closest('.bay');
+    if (b && swipe) {
+      this.track.scrollTo({ left: b.offsetLeft + b.offsetWidth / 2 - this.vw / 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+      return;
+    }
     if (!b || this.distance <= 0) return;
     const p = clamp((b.offsetLeft + b.offsetWidth / 2 - this.vw / 2) / this.distance, 0, 1);
     const top = this.el.getBoundingClientRect().top + window.scrollY;
     window.scrollTo({ top: top + p * this.distance, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
   }
+  /* On a computer a sideways trackpad swipe (or shift + wheel) walks the wall too, while the room fills the screen. */
+  sideways(e) {
+    if (swipe || this.distance <= 0) return;
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+    const dx = e.deltaX * unit, dy = e.deltaY * unit;
+    if (Math.abs(dx) <= Math.abs(dy)) return;
+    const r = this.el.getBoundingClientRect();
+    if (r.top > 1 || r.bottom < window.innerHeight - 1) return;
+    e.preventDefault();
+    /* snapping is paused while the fingers move, then settles on the nearest drawing, as with scrolling down */
+    const root = document.documentElement;
+    root.style.scrollSnapType = 'none';
+    clearTimeout(sideTimer);
+    sideTimer = setTimeout(() => { root.style.scrollSnapType = ''; }, 180);
+    const top = r.top + window.scrollY;
+    window.scrollTo(0, clamp(window.scrollY + dx, top, top + this.distance));
+  }
 }
+let sideTimer = 0;
 const halls = $$('.hall', home).map(s => new Hall(s));
+const swipeChanged = () => {
+  swipe = swipeMQ.matches;
+  document.documentElement.classList.toggle('swipe', swipe);
+  halls.forEach(h => { h.track.style.transform = ''; h.track.scrollLeft = 0; });
+  layoutHalls();
+};
+if (swipeMQ.addEventListener) swipeMQ.addEventListener('change', swipeChanged);
 const roomLinks = $$('[data-room]', nav);
 let lastY = window.scrollY, ticking = false;
 
